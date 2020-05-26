@@ -2,9 +2,9 @@ package translation
 
 import (
 	"context"
-	"fmt"
 	"os"
 
+	"cloud.google.com/go/translate"
 	"golang.org/x/text/language"
 )
 
@@ -18,28 +18,30 @@ type GoogleTranslator struct {
 func (gt GoogleTranslator) Translate(input TranslationDictionary) (TranslationDictionary, error) {
 	checkAPIKey()
 
-	var translated map[string]string
+	translated := make(map[string]string)
 
-	for index, element := range input.Dictionary {
-		outputText, err := translate(input.InputLang, input.OutputLang, element)
+	for key, value := range input.Dictionary {
+		outputText, err := translateText(value, input.OutputLang)
 		if err != nil {
-
+			return input, err
+		} else {
+			translated[key] = outputText
 		}
-
-		append(translated[index], element)
 	}
 
 	input.Dictionary = translated
 
+	input.Translated = true
+
 	return input, nil
 }
 
-func translate(text, inputLang, outputLang string) (string, error) {
+func translateText(text, targetLanguage string) (string, error) {
 	ctx := context.Background()
 
-	lang, err := language.Parse("pt-br")
+	lang, err := language.Parse(targetLanguage)
 	if err != nil {
-		fmt.Fprintf(w, "language.Parse: %v", err)
+		return "", err
 	}
 
 	client, err := translate.NewClient(ctx)
@@ -48,7 +50,7 @@ func translate(text, inputLang, outputLang string) (string, error) {
 	}
 	defer client.Close()
 
-	resp, err := client.Translate(ctx, []string{"Test"}, lang, nil)
+	resp, err := client.Translate(ctx, []string{text}, lang, nil)
 	if err != nil {
 		return "", err
 	}
