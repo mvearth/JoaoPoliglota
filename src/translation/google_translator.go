@@ -2,6 +2,7 @@ package translation
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"cloud.google.com/go/translate"
@@ -10,22 +11,30 @@ import (
 
 const googleApiEnvKey string = "GOOGLE_APPLICATION_CREDENTIALS"
 
-// GoogleTranslator encapsulate the translation process used by GoogleAPI
 type GoogleTranslator struct {
 }
 
-// Translate using the GoogleAPI
 func (gt GoogleTranslator) Translate(input TranslationDictionary) (TranslationDictionary, error) {
 	checkAPIKey()
 
 	translated := make(map[string]string)
 
 	for key, value := range input.Dictionary {
-		outputText, err := translateText(value, input.OutputLang)
-		if err != nil {
-			return input, err
+		translation, err := GetTranslation(key, input.OutputLang)
+		if err == nil && translation.StandardKey == key {
+			translated[key] = translation.Translation
 		} else {
-			translated[key] = outputText
+			outputText, err := translateText(value, input.OutputLang)
+			if err != nil {
+				return input, err
+			} else {
+				translation := Translation{Idiom: input.OutputLang, StandardKey: key, Translation: outputText}
+				done, err := InsertTranslation(translation)
+				if err != nil && !done {
+					fmt.Errorf("%s", err.Error())
+				}
+				translated[key] = outputText
+			}
 		}
 	}
 
