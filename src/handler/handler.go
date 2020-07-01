@@ -1,4 +1,3 @@
-// Package handler is used to handle http requests
 package handler
 
 import (
@@ -8,7 +7,6 @@ import (
 	"net/http"
 )
 
-// Translate handles translation post requests wich contains a TranslationDictionary in the body
 func Translate(w http.ResponseWriter, r *http.Request) {
 	translator := translation.GetTranslator()
 	decoder := json.NewDecoder(r.Body)
