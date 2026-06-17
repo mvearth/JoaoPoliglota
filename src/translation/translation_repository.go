@@ -66,7 +66,7 @@ func TestConnection() {
 	defer con.Close()
 	err := con.Ping()
 	if err != nil {
-		fmt.Errorf("%s", err.Error())
+		fmt.Printf("%s\n", err.Error())
 		return
 	}
 

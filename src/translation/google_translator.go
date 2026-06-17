@@ -31,7 +31,7 @@ func (gt GoogleTranslator) Translate(input TranslationDictionary) (TranslationDi
 				translation := Translation{Idiom: input.OutputLang, StandardKey: key, Translation: outputText}
 				done, err := InsertTranslation(translation)
 				if err != nil && !done {
-					fmt.Errorf("%s", err.Error())
+					fmt.Printf("%s\n", err.Error())
 				}
 				translated[key] = outputText
 			}
