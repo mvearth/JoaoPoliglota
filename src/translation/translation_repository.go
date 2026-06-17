@@ -1,74 +1,75 @@
 package translation
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+
 	_ "github.com/lib/pq"
-	"log"
+
+	"joao_poliglota/config"
 )
 
-const (
-	USER    = "postgres"
-	PASS    = "banco"
-	DBNAME  = "joaopoliglota"
-	SSLMODE = "disable"
-)
+// Repository provides access to the translations store. It wraps a *sql.DB,
+// which is a connection pool meant to be created once and shared.
+type Repository struct {
+	db *sql.DB
+}
 
-func Connect() *sql.DB {
-	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=%s", USER, PASS, DBNAME, SSLMODE)
+// NewRepository wires a Repository around an existing connection pool.
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{db: db}
+}
+
+// Connect opens a PostgreSQL connection pool using configuration from the
+// environment. The returned *sql.DB is safe for concurrent use and should be
+// closed by the caller on shutdown. It does not establish a connection until
+// one is needed; use Ping to verify connectivity.
+func Connect(cfg config.DB) (*sql.DB, error) {
+	connStr := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode,
+	)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal(err)
-		return nil
+		return nil, fmt.Errorf("opening database: %w", err)
 	}
-
-	return db
+	return db, nil
 }
 
-func InsertTranslation(translation Translation) (bool, error) {
-	con := Connect()
-	defer con.Close()
-	sql := "INSERT INTO translations (idiom, standard_key, translation) VALUES($1, $2, $3) RETURNING translation_id"
-	stmt, err := con.Prepare(sql)
+// Insert stores a translation and reports whether it was persisted.
+func (r *Repository) Insert(ctx context.Context, t Translation) (bool, error) {
+	const query = `INSERT INTO translations (idiom, standard_key, translation)
+		VALUES ($1, $2, $3) RETURNING translation_id`
+
+	stmt, err := r.db.PrepareContext(ctx, query)
 	if err != nil {
 		return false, err
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(translation.Idiom, translation.StandardKey, translation.Translation)
-	if err != nil {
+
+	if _, err := stmt.ExecContext(ctx, t.Idiom, t.StandardKey, t.Translation); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-func GetTranslation(standardKey, idiom string) (Translation, error) {
-	con := Connect()
-	defer con.Close()
-	sql := "SELECT * FROM translations where idiom = $1 AND standard_key = $2"
-	rs, err := con.Query(sql, idiom, standardKey)
+// Get returns the cached translation for the given key and idiom. When no row
+// matches it returns a zero-value Translation and a nil error, so callers
+// should check whether StandardKey was populated.
+func (r *Repository) Get(ctx context.Context, standardKey, idiom string) (Translation, error) {
+	const query = `SELECT translation_id, idiom, standard_key, translation
+		FROM translations WHERE idiom = $1 AND standard_key = $2`
+
+	var t Translation
+	err := r.db.QueryRowContext(ctx, query, idiom, standardKey).
+		Scan(&t.ID, &t.Idiom, &t.StandardKey, &t.Translation)
+	if err == sql.ErrNoRows {
+		return Translation{}, nil
+	}
 	if err != nil {
 		return Translation{}, err
 	}
-	defer rs.Close()
-	var translation Translation
-	for rs.Next() {
-		err := rs.Scan(&translation.ID, &translation.Idiom, &translation.StandardKey, &translation.Translation)
-		if err != nil {
-			return translation, err
-		}
-	}
-	return translation, nil
-}
-
-func TestConnection() {
-	con := Connect()
-	defer con.Close()
-	err := con.Ping()
-	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-		return
-	}
-
-	fmt.Println("Database connected!")
+	return t, nil
 }

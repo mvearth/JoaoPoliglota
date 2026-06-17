@@ -1,12 +1,10 @@
-// Package translation provides translators
+// Package translation provides translators and their backing store.
 package translation
 
-// Translator is the interface that the translators must implement to be switchable in the translation process
-type Translator interface {
-	Translate(input TranslationDictionary) (TranslationDictionary, error)
-}
+import "context"
 
-// GetTranslator returns the current translator available
-func GetTranslator() Translator {
-	return &GoogleTranslator{}
+// Translator is the interface that translators must implement so the
+// translation backend can be swapped without touching callers.
+type Translator interface {
+	Translate(ctx context.Context, input TranslationDictionary) (TranslationDictionary, error)
 }
